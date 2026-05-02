@@ -23,6 +23,9 @@ model DailyEntry {
   weightKg         Float?
   drankLotsOfWater Boolean  @default(false)
   mealsCorrect     Boolean  @default(false)
+  trained          Boolean  @default(false)
+  walked           Boolean  @default(false)
+  limitedSugar     Boolean  @default(false)
   ateLateNight     Boolean  @default(false)
   drankAlcohol     Boolean  @default(false)
   createdAt        DateTime @default(now())

@@ -18,3 +18,44 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   min-height: 100dvh;
 }
+
+@keyframes celebration-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) translateY(12px);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.08) translateY(0);
+  }
+  70% {
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes celebration-star {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.5) rotate(-12deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.15) rotate(6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0);
+  }
+}
+
+.celebration-card {
+  animation: celebration-pop 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.celebration-star {
+  animation: celebration-star 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

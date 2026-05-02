@@ -38,6 +38,9 @@ export async function POST(request: Request) {
       weightKg?: number | null;
       drankLotsOfWater?: boolean;
       mealsCorrect?: boolean;
+      trained?: boolean;
+      walked?: boolean;
+      limitedSugar?: boolean;
       ateLateNight?: boolean;
       drankAlcohol?: boolean;
     };
@@ -65,6 +68,9 @@ export async function POST(request: Request) {
         weightKg: weightKg ?? null,
         drankLotsOfWater: Boolean(body.drankLotsOfWater),
         mealsCorrect: Boolean(body.mealsCorrect),
+        trained: Boolean(body.trained),
+        walked: Boolean(body.walked),
+        limitedSugar: Boolean(body.limitedSugar),
         ateLateNight: Boolean(body.ateLateNight),
         drankAlcohol: Boolean(body.drankAlcohol),
       },
@@ -72,6 +78,9 @@ export async function POST(request: Request) {
         ...(weightKg !== undefined ? { weightKg } : {}),
         drankLotsOfWater: Boolean(body.drankLotsOfWater),
         mealsCorrect: Boolean(body.mealsCorrect),
+        trained: Boolean(body.trained),
+        walked: Boolean(body.walked),
+        limitedSugar: Boolean(body.limitedSugar),
         ateLateNight: Boolean(body.ateLateNight),
         drankAlcohol: Boolean(body.drankAlcohol),
       },
@@ -81,5 +90,28 @@ export async function POST(request: Request) {
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Nie udało się zapisać dnia." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const body = (await request.json()) as { date?: string };
+    const day = body.date ? parseDayUTC(body.date) : null;
+    if (!day) {
+      return NextResponse.json({ error: "Podaj datę w formacie YYYY-MM-DD." }, { status: 400 });
+    }
+
+    const result = await prisma.dailyEntry.deleteMany({
+      where: { date: day },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Brak wpisu dla tej daty." }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json({ error: "Nie udało się usunąć wpisu." }, { status: 500 });
   }
 }
