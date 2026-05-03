@@ -322,7 +322,7 @@ export function Tracker() {
     "rounded-xl border border-white/15 bg-[var(--surface)]/90 shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-[var(--surface)]/75";
 
   return (
-    <div className="mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-6 md:max-w-4xl">
+    <div className="mx-auto max-w-3xl px-3 py-3 sm:px-4 sm:py-6 md:max-w-4xl">
       <ScoreCelebration
         open={celebrateOpen}
         points={DAY_MAX_POSITIVE}
