@@ -7,21 +7,29 @@ import {
   PENALTY_EACH,
   WEEK_MAX_POINTS,
   dayScore,
+  weekMaxPointsThroughAnchor,
   weekPercentOfMax,
   weekPointsEarned,
+  weekPointsEarnedThroughAnchor,
+  weekPacePercentOfMax,
   weekTier,
   type ScoredDay,
+  type TrainingType,
 } from "@/lib/day-score";
 
 export type ManageDayRow = {
   id: string;
   date: string;
   weightKg: number | null;
+  waistCm: number | null;
   drankLotsOfWater: boolean;
   mealsCorrect: boolean;
-  trained: boolean;
-  walked: boolean;
   limitedSugar: boolean;
+  trainingType: TrainingType;
+  trainingProgress: boolean;
+  steps: number | null;
+  proteinTargetHit: boolean;
+  sleepHours: number | null;
   ateLateNight: boolean;
   drankAlcohol: boolean;
 };
@@ -31,6 +39,8 @@ type Props = {
   onClose: () => void;
   entries: ManageDayRow[];
   scoredDays: ScoredDay[];
+  /** Tydzień kalendarzowy liczony względem tej daty (np. data z formularza). Domyślnie: dziś. */
+  weekRef?: Date;
   onEditDate: (dateISO: string) => void;
   onRefresh: () => void | Promise<void>;
 };
@@ -78,6 +88,7 @@ export function EntriesManageDrawer({
   onClose,
   entries,
   scoredDays,
+  weekRef,
   onEditDate,
   onRefresh,
 }: Props) {
@@ -128,9 +139,13 @@ export function EntriesManageDrawer({
 
   const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
 
-  const weekEarned = weekPointsEarned(scoredDays);
-  const weekPct = weekPercentOfMax(scoredDays);
-  const tier = weekTier(weekPct);
+  const ref = weekRef ?? new Date();
+  const weekEarnedFull = weekPointsEarned(scoredDays, ref);
+  const weekPctFull = weekPercentOfMax(scoredDays, ref);
+  const weekEarnedPace = weekPointsEarnedThroughAnchor(scoredDays, ref);
+  const weekMaxPace = weekMaxPointsThroughAnchor(ref);
+  const weekPacePct = weekPacePercentOfMax(scoredDays, ref);
+  const tierPace = weekTier(weekPacePct);
 
   return (
     <div className="fixed inset-0 z-[90]">
@@ -164,12 +179,20 @@ export function EntriesManageDrawer({
           <p className="font-semibold text-[var(--text)]">Punktacja</p>
           <ul className="mt-2 list-inside list-disc space-y-1">
             <li>
-              <strong className="text-[var(--text)]">+1</strong> za każdy plus: dużo wody, posiłki OK, trening,
-              spacer, ograniczałem cukier — <strong className="text-[var(--text)]">max +{DAY_MAX_POSITIVE} dziennie</strong>.
+              <strong className="text-[var(--text)]">+1</strong> za wodę,{" "}
+              <strong className="text-[var(--text)]">+1</strong> za posiłki OK i{" "}
+              <strong className="text-[var(--text)]">+1</strong> za ograniczony cukier.
+            </li>
+            <li>
+              <strong className="text-[var(--text)]">+3</strong> za siłowy,{" "}
+              <strong className="text-[var(--text)]">+2</strong> za progres,{" "}
+              <strong className="text-[var(--text)]">+1/+2</strong> za 7k/10k kroków,{" "}
+              <strong className="text-[var(--text)]">+3</strong> za białko i{" "}
+              <strong className="text-[var(--text)]">+2</strong> za sen 7h+.
             </li>
             <li>
               <strong className="text-[var(--text)]">−{PENALTY_EACH}</strong> za zaznaczenie „jedzenie na noc” oraz{" "}
-              <strong className="text-[var(--text)]">−{PENALTY_EACH}</strong> za alkohol (łącznie do −2).
+              <strong className="text-[var(--text)]">−{PENALTY_EACH}</strong> za alkohol. Sen poniżej 6h też daje −1.
             </li>
             <li>
               Wynik dnia może być od <strong className="text-[var(--text)]">{DAY_MIN_NET}</strong> do{" "}
@@ -181,12 +204,18 @@ export function EntriesManageDrawer({
               {DAY_MAX_POSITIVE}).
             </li>
             <li>
-              Ten tydzień: <strong className="text-[var(--text)]">{weekEarned}</strong> / {WEEK_MAX_POINTS} (
-              {weekPct.toFixed(0)}%) — <strong className="text-[var(--text)]">{tier.label}</strong>
+              <strong className="text-[var(--text)]">Tempo (pon–wybrany dzień):</strong>{" "}
+              <strong className="text-[var(--text)]">{weekEarnedPace}</strong> / {weekMaxPace} (
+              {weekPacePct.toFixed(0)}%) — <strong className="text-[var(--text)]">{tierPace.label}</strong>
+            </li>
+            <li>
+              <strong className="text-[var(--text)]">Cały tydzień (pon–nie):</strong>{" "}
+              <strong className="text-[var(--text)]">{weekEarnedFull}</strong> / {WEEK_MAX_POINTS} (
+              {weekPctFull.toFixed(0)}%).
             </li>
           </ul>
           <p className="mt-3 border-t border-white/10 pt-3">
-            <strong className="text-[var(--text)]">Ocena tygodnia:</strong> od{" "}
+            <strong className="text-[var(--text)]">Ocena tygodnia (wg tempa pon–dziś):</strong> od{" "}
             <strong className="text-amber-200">95%</strong> — Super level;{" "}
             <strong className="text-emerald-200">85–95%</strong> — Świetnie;{" "}
             <strong className="text-sky-200">75–85%</strong> — OK; <strong className="text-red-200">&lt;75%</strong>{" "}
@@ -208,9 +237,12 @@ export function EntriesManageDrawer({
                 const pts = dayScore({
                   drankLotsOfWater: row.drankLotsOfWater,
                   mealsCorrect: row.mealsCorrect,
-                  trained: Boolean(row.trained),
-                  walked: Boolean(row.walked),
-                  limitedSugar: Boolean(row.limitedSugar),
+                  limitedSugar: row.limitedSugar,
+                  trainingType: row.trainingType,
+                  trainingProgress: row.trainingProgress,
+                  steps: row.steps,
+                  proteinTargetHit: row.proteinTargetHit,
+                  sleepHours: row.sleepHours,
                   ateLateNight: row.ateLateNight,
                   drankAlcohol: row.drankAlcohol,
                 });
@@ -224,10 +256,11 @@ export function EntriesManageDrawer({
                         <p className="font-medium text-white">{d}</p>
                         <p className="text-xs text-[var(--muted)]">
                           <span className={pts < 0 ? "text-red-300" : pts >= DAY_MAX_POSITIVE ? "text-amber-200" : ""}>
-                            {pts > 0 ? "+" : ""}
-                            {pts} pkt
+                            Recomp {pts}/{DAY_MAX_POSITIVE}
                           </span>
                           {row.weightKg != null ? ` · ${row.weightKg} kg` : ""}
+                          {row.trainingType === "strength" ? " · siłowy" : row.trainingType === "cardio" ? " · cardio" : ""}
+                          {row.steps != null ? ` · ${row.steps} kroków` : ""}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-2">

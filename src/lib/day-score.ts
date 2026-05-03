@@ -1,11 +1,11 @@
-/** Maks. punkty „plus” za jeden dzień (woda, posiłki, trening, spacer, cukier). */
-export const DAY_MAX_POSITIVE = 5;
+/** Maks. punkty „plus” za dzień: rekompozycja + podstawowe dobre nawyki. */
+export const DAY_MAX_POSITIVE = 15;
 
 /** Kara za jeden przełącznik (późny posiłek / alkohol). */
 export const PENALTY_EACH = 1;
 
-/** Najsłabszy możliwy wynik dnia: 0 plusów − 2 kary (−2). */
-export const DAY_MIN_NET = -2;
+/** Najsłabszy możliwy wynik dnia: brak plusów, sen < 6 h, nocne jedzenie i alkohol. */
+export const DAY_MIN_NET = -3;
 
 /** Do wyświetlania „idealnego dnia” (wszystkie plusy, bez kar). */
 export const DAY_MAX_POINTS = DAY_MAX_POSITIVE;
@@ -13,12 +13,17 @@ export const DAY_MAX_POINTS = DAY_MAX_POSITIVE;
 /** Teoretyczny max raw punktów w 7-dniowym tygodniu kalendarzowym (pon–niedz.). */
 export const WEEK_MAX_POINTS = 7 * DAY_MAX_POSITIVE;
 
+export type TrainingType = "strength" | "cardio" | "none";
+
 export type DayScoreInput = {
   drankLotsOfWater: boolean;
   mealsCorrect: boolean;
-  trained: boolean;
-  walked: boolean;
   limitedSugar: boolean;
+  trainingType: TrainingType;
+  trainingProgress: boolean;
+  steps: number | null;
+  proteinTargetHit: boolean;
+  sleepHours: number | null;
   ateLateNight: boolean;
   drankAlcohol: boolean;
 };
@@ -41,17 +46,19 @@ export function localWeekDatesISO(ref = new Date()): string[] {
   return out;
 }
 
-/**
- * +1 za: wodę, posiłki, trening, spacer, ograniczenie cukru.
- * −1 jeśli zaznaczono jedzenie na noc lub alkohol (łącznie do −2).
- */
+/** Recomposition Score: premiuje bodźce realnie zmieniające sylwetkę. */
 export function dayScore(e: DayScoreInput): number {
   let p = 0;
-  if (e.drankLotsOfWater) p++;
-  if (e.mealsCorrect) p++;
-  if (e.trained) p++;
-  if (e.walked) p++;
-  if (e.limitedSugar) p++;
+  if (e.drankLotsOfWater) p += 1;
+  if (e.mealsCorrect) p += 1;
+  if (e.limitedSugar) p += 1;
+  if (e.trainingType === "strength") p += 3;
+  if (e.trainingType === "strength" && e.trainingProgress) p += 2;
+  if ((e.steps ?? 0) >= 10000) p += 2;
+  else if ((e.steps ?? 0) >= 7000) p += 1;
+  if (e.proteinTargetHit) p += 3;
+  if ((e.sleepHours ?? 0) >= 7) p += 2;
+  else if (e.sleepHours != null && e.sleepHours < 6) p -= PENALTY_EACH;
   if (e.ateLateNight) p -= PENALTY_EACH;
   if (e.drankAlcohol) p -= PENALTY_EACH;
   return p;
@@ -83,6 +90,50 @@ export function weekPointsEarned(entries: ScoredDay[], ref = new Date()): number
 export function weekPercentOfMax(entries: ScoredDay[], ref = new Date()): number {
   if (WEEK_MAX_POINTS <= 0) return 0;
   return (weekPointsEarned(entries, ref) / WEEK_MAX_POINTS) * 100;
+}
+
+/** Lokalne YYYY-MM-DD kotwicy (bez UTC shift). */
+export function anchorLocalDateISO(ref: Date): string {
+  return `${ref.getFullYear()}-${pad2(ref.getMonth() + 1)}-${pad2(ref.getDate())}`;
+}
+
+/** Indeks dnia w tygodniu kalendarzowym: 0 = poniedziałek … 6 = niedziela. */
+export function weekMondayIndex0(ref: Date): number {
+  const week = localWeekDatesISO(ref);
+  const anchor = anchorLocalDateISO(ref);
+  const idx = week.indexOf(anchor);
+  return idx >= 0 ? idx : 0;
+}
+
+/** Maks. pkt możliwe od pon. do dnia kotwicy (włącznie). */
+export function weekMaxPointsThroughAnchor(ref: Date): number {
+  return (weekMondayIndex0(ref) + 1) * DAY_MAX_POSITIVE;
+}
+
+/** Suma pkt od pon. do dnia kotwicy (włącznie); brak wpisu = 0 za ten dzień. */
+export function weekPointsEarnedThroughAnchor(entries: ScoredDay[], ref: Date): number {
+  const map = new Map<string, DayScoreInput>();
+  for (const e of entries) {
+    map.set(e.date.slice(0, 10), e);
+  }
+  const week = localWeekDatesISO(ref);
+  const through = weekMondayIndex0(ref);
+  let sum = 0;
+  for (let i = 0; i <= through; i++) {
+    const row = map.get(week[i]!);
+    if (row) sum += dayScore(row);
+  }
+  return sum;
+}
+
+/**
+ * Tempo tygodnia: % zdobytych pkt względem maksimum tylko za dni od pon. do dziś.
+ * Działa sensownie już po pierwszym wpisie w tygodniu (nie dzieli przez całe 7×max).
+ */
+export function weekPacePercentOfMax(entries: ScoredDay[], ref: Date): number {
+  const max = weekMaxPointsThroughAnchor(ref);
+  if (max <= 0) return 0;
+  return Math.min(100, (weekPointsEarnedThroughAnchor(entries, ref) / max) * 100);
 }
 
 export type WeekTierId = "super_level" | "great" | "ok" | "weak";

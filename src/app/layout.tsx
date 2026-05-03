@@ -20,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pl">
-      <body className="relative min-h-dvh antialiased text-[var(--text)]">
+    <html lang="pl" suppressHydrationWarning>
+      <body className="relative min-h-dvh antialiased text-[var(--text)]" suppressHydrationWarning>
         <PhotoBackground />
         <div className="relative z-10 min-h-dvh pb-[max(1rem,env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)]">
           {children}

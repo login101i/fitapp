@@ -61,8 +61,8 @@ export function ScoreCelebration({ open, points, maxPoints, onClose }: Props) {
         </p>
         <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
           {perfect
-            ? "Pełna dzienna punktacja — wszystkie plusy, bez kar za noc i alkohol. Tak trzymaj!"
-            : "Każdy dzień buduje Twój tydzień. Cel: jak najwięcej plusów."}
+            ? "Pełny dzień rekompozycji: siła, progres, kroki, białko i sen. Tak budujesz sylwetkę."
+            : "Każdy dzień buduje Twój tydzień. Cel: mocny proces, nie sama waga."}
         </p>
         <button
           type="button"

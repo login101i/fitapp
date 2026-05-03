@@ -1,35 +1,47 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { loadFitAppRow, saveFitAppColumn } from "@/lib/fitapp-store";
 
 const DEFAULT_ID = "default";
 
-async function ensureProfile() {
-  let profile = await prisma.profile.findUnique({ where: { id: DEFAULT_ID } });
-  if (!profile) {
-    profile = await prisma.profile.create({
-      data: {
-        id: DEFAULT_ID,
-        heightCm: 183,
-        baselineWeightKg: 80,
-      },
-    });
-  }
-  return profile;
+function mysqlErrorMessage(e: unknown): string {
+  const err = e as { code?: string; message?: string };
+  if (err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT") return "Brak połączenia z MySQL.";
+  return err?.message ?? "Błąd MySQL.";
 }
 
 export async function GET() {
   try {
-    const profile = await ensureProfile();
-    return NextResponse.json(profile);
+    const { rowExists, outer, state } = await loadFitAppRow();
+    if (!rowExists) {
+      return NextResponse.json(
+        {
+          error:
+            "Brak wiersza w tabeli (DB_FITAPP_TABLE / DB_FITAPP_ROW_ID). Utwórz rekord lub popraw .env.",
+        },
+        { status: 404 }
+      );
+    }
+    return NextResponse.json({
+      id: DEFAULT_ID,
+      heightCm: state.profile.heightCm,
+      baselineWeightKg: state.profile.baselineWeightKg,
+    });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: "Błąd bazy danych. Sprawdź DATABASE_URL." }, { status: 500 });
+    return NextResponse.json({ error: mysqlErrorMessage(e) }, { status: 500 });
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    await ensureProfile();
+    const { rowExists, outer, state } = await loadFitAppRow();
+    if (!rowExists) {
+      return NextResponse.json(
+        { error: "Brak wiersza w tabeli — zobacz DB_FITAPP_ROW_ID w .env." },
+        { status: 404 }
+      );
+    }
+
     const body = (await request.json()) as {
       heightCm?: number;
       baselineWeightKg?: number | null;
@@ -45,20 +57,24 @@ export async function PATCH(request: Request) {
           ? body.baselineWeightKg
           : undefined;
 
-    const data: { heightCm?: number; baselineWeightKg?: number | null } = {};
-    if (heightCm !== undefined) data.heightCm = heightCm;
-    if (baselineWeightKg !== undefined) data.baselineWeightKg = baselineWeightKg;
+    const next = { ...state, profile: { ...state.profile } };
+    if (heightCm !== undefined) next.profile.heightCm = heightCm;
+    if (baselineWeightKg !== undefined) next.profile.baselineWeightKg = baselineWeightKg;
 
-    if (Object.keys(data).length === 0) {
-      const profile = await prisma.profile.findUnique({ where: { id: DEFAULT_ID } });
-      return NextResponse.json(profile ?? (await ensureProfile()));
+    if (heightCm === undefined && baselineWeightKg === undefined) {
+      return NextResponse.json({
+        id: DEFAULT_ID,
+        heightCm: state.profile.heightCm,
+        baselineWeightKg: state.profile.baselineWeightKg,
+      });
     }
 
-    const profile = await prisma.profile.update({
-      where: { id: DEFAULT_ID },
-      data,
+    await saveFitAppColumn(outer, next);
+    return NextResponse.json({
+      id: DEFAULT_ID,
+      heightCm: next.profile.heightCm,
+      baselineWeightKg: next.profile.baselineWeightKg,
     });
-    return NextResponse.json(profile);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Nie udało się zapisać profilu." }, { status: 500 });
